@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: voice
+          POSTGRES_PASSWORD: voice
+          POSTGRES_DB: voice_agent
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U voice -d voice_agent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgres://voice:voice@localhost:5432/voice_agent
+      DATABASE_URL_MIGRATE: postgres://voice:voice@localhost:5432/voice_agent
+      DEFAULT_BUSINESS_NAME: Bright Smile Dental
+      DEFAULT_BUSINESS_TIMEZONE: America/New_York
+      ENABLE_RETELL: "false"
+      ENABLE_CALENDAR: "false"
+      ENABLE_MESSAGING: "false"
+      ENABLE_N8N: "false"
+      ENABLE_HUBSPOT: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.19"
+          cache: npm
+      - name: Create app role
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          PGPASSWORD=voice psql -h localhost -U voice -d voice_agent -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'voice_app') THEN CREATE ROLE voice_app LOGIN PASSWORD 'voice_app' NOSUPERUSER NOCREATEDB NOCREATEROLE; END IF; END \$\$; GRANT CONNECT ON DATABASE voice_agent TO voice_app;"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run migrate
+      - run: npm test
+        env:
+          DATABASE_URL_APP: postgres://voice_app:voice_app@localhost:5432/voice_agent
