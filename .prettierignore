@@ -6,3 +6,5 @@ package-lock.json
 codebase_files
 migrations/sql
 .env
+web/dist
+web/node_modules

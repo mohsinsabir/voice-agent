@@ -103,6 +103,7 @@ describe.runIf(hasDb)("idempotency constraints", () => {
 
       let rejected = false;
       try {
+        await client.query("SAVEPOINT overlap_test");
         await client.query(
           `INSERT INTO appointments (
              business_id, caller_id, calendar_event_id, start_time, end_time, timezone, status, service_type
@@ -115,10 +116,12 @@ describe.runIf(hasDb)("idempotency constraints", () => {
             end.toISOString(),
           ],
         );
+        await client.query("RELEASE SAVEPOINT overlap_test");
       } catch (err: unknown) {
         const code =
           typeof err === "object" && err && "code" in err ? (err as { code: string }).code : "";
         rejected = code === "23P01" || code === "23505";
+        await client.query("ROLLBACK TO SAVEPOINT overlap_test");
       }
       expect(rejected).toBe(true);
 

@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import cors from "@fastify/cors";
 import sensible from "@fastify/sensible";
 import { loadEnv } from "./config/env.js";
 import { logger } from "./config/logger.js";
@@ -6,6 +7,9 @@ import { closePool } from "./db/pool.js";
 import { errorHandlerPlugin } from "./middleware/error-handler.js";
 import { requestIdPlugin } from "./middleware/request-id.js";
 import { healthRoutes } from "./routes/health.js";
+import { toolRoutes } from "./routes/tools.js";
+import { webCallRoutes } from "./routes/web-call.js";
+import { retellWebhookRoutes } from "./routes/webhooks/retell.js";
 
 export async function buildApp() {
   // Fail closed on bad config before binding the port.
@@ -16,10 +20,17 @@ export async function buildApp() {
     requestIdHeader: "x-request-id",
   });
 
+  await app.register(cors, {
+    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
+    methods: ["GET", "POST", "OPTIONS"],
+  });
   await app.register(sensible);
   await app.register(requestIdPlugin);
   await app.register(errorHandlerPlugin);
   await app.register(healthRoutes);
+  await app.register(webCallRoutes);
+  await app.register(toolRoutes);
+  await app.register(retellWebhookRoutes);
 
   return app;
 }

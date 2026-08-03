@@ -1,47 +1,63 @@
 # AI Voice Agent — Appointment Booking & Lead Qualification
 
-Node.js/TypeScript backend for a Retell-powered dental clinic phone agent: live booking via Google Calendar, lead qualification, post-call automation through n8n (HubSpot, SMS, email), and a review dashboard.
+Node.js/TypeScript backend + React web client for a Retell-powered dental clinic voice agent.
 
 ## Status
 
 See [`progress.md`](./progress.md) and [`docs/implementation-phases.md`](./docs/implementation-phases.md).
 
-**Current gate:** Phase 1 — Foundation
+**Current focus:** Phase 2 — Retell web call frontend connected; custom tools next.
 
-## Quick start (Phase 1)
+## Quick start
 
 ### Prerequisites
 
-- Node.js 20.19+ recommended (20.9+ minimum)
-- Docker Desktop (for local Postgres)
+- Node.js 20.9+ (20.19+ recommended)
+- Supabase Postgres (or local Docker)
+- Retell AI account + published agent
 
-### Setup
+### Backend
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres
+# Fill DATABASE_URL (Session pooler), RETELL_API_KEY, RETELL_AGENT_ID, ENABLE_RETELL=true
 npm install
-npm run migrate
+npm run migrate   # if using local migrations
 npm run dev
 ```
 
-Health check: `GET http://localhost:3000/health`
+Health: `GET http://localhost:3000/health`
 
-### Scripts
+### Web call frontend
+
+```bash
+npm --prefix web install
+npm run dev:web
+```
+
+Open `http://localhost:5173` → **Start call** (allow microphone).
+
+Or run both:
+
+```bash
+npm run dev:all
+```
+
+`POST /api/web-call` creates a Retell access token on the server (API key never ships to the browser).
+
+## Scripts
 
 | Script | Purpose |
 |---|---|
-| `npm run dev` | Start API with reload |
-| `npm run migrate` | Apply DB migrations |
-| `npm test` | Unit + DB constraint tests |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | TypeScript |
+| `npm run dev` | API (port 3000) |
+| `npm run dev:web` | Vite frontend (port 5173) |
+| `npm run dev:all` | API + frontend |
+| `npm test` | Backend tests |
+| `npm run typecheck` | Backend TypeScript |
 
 ## Docs
 
 - [`docs/architecture.md`](./docs/architecture.md)
-- [`docs/database-schema.md`](./docs/database-schema.md)
-- [`docs/voice-agent-tool-contracts.md`](./docs/voice-agent-tool-contracts.md)
-- [`docs/n8n-event-map.md`](./docs/n8n-event-map.md)
 - [`docs/system-prompts.md`](./docs/system-prompts.md)
-- [`docs/lead-rubric.md`](./docs/lead-rubric.md)
+- [`docs/voice-agent-tool-contracts.md`](./docs/voice-agent-tool-contracts.md)
+- [`docs/phase-2-local-testing.md`](./docs/phase-2-local-testing.md)

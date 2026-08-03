@@ -5,7 +5,13 @@ dotenv.config({ override: true });
 
 import { z } from "zod";
 
-const boolFromEnv = z.preprocess((v) => v === true || v === "true" || v === "1", z.boolean());
+const boolFromEnv = z.preprocess((v) => {
+  if (typeof v === "string") {
+    const t = v.trim().toLowerCase();
+    return t === "true" || t === "1";
+  }
+  return v === true || v === 1;
+}, z.boolean());
 
 const coreSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -17,6 +23,9 @@ const coreSchema = z.object({
   DEFAULT_BUSINESS_ID: z.string().uuid().optional(),
   SUPABASE_PROJECT_REF: z.string().optional(),
   SUPABASE_URL: z.string().url().optional(),
+  /** Shared secret for Retell custom-function tool calls (Phase 2). */
+  RETELL_TOOL_SECRET: z.string().min(1).optional(),
+  HANDOFF_TRANSFER_NUMBER: z.string().optional(),
   ENABLE_RETELL: boolFromEnv.default(false),
   ENABLE_CALENDAR: boolFromEnv.default(false),
   ENABLE_MESSAGING: boolFromEnv.default(false),
@@ -26,8 +35,8 @@ const coreSchema = z.object({
 
 const retellSchema = z.object({
   RETELL_API_KEY: z.string().min(1),
-  RETELL_WEBHOOK_SECRET: z.string().min(1),
-  RETELL_TOOL_SECRET: z.string().min(1),
+  RETELL_AGENT_ID: z.string().min(1),
+  RETELL_WEBHOOK_SECRET: z.string().min(1).optional(),
 });
 
 const calendarSchema = z.object({
@@ -92,7 +101,7 @@ export function loadEnv(processEnv: NodeJS.ProcessEnv = process.env): Env {
     ...requireWhen(data.ENABLE_MESSAGING, "Messaging", messagingSchema, processEnv),
     ...requireWhen(data.ENABLE_N8N, "n8n", n8nSchema, processEnv),
     ...requireWhen(data.ENABLE_HUBSPOT, "HubSpot", hubspotSchema, processEnv),
-  };
+  } as Env;
 }
 
 let cached: Env | null = null;

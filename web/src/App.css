@@ -1,0 +1,179 @@
+.page {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 4.5rem 1.5rem 3rem;
+}
+
+.hero {
+  margin-bottom: 2.5rem;
+}
+
+.brand {
+  margin: 0 0 0.75rem;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 5vw, 2.75rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.hero h1 {
+  margin: 0 0 0.75rem;
+  font-family: var(--font-body);
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.lede {
+  margin: 0;
+  max-width: 32rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.panel {
+  padding: 1.75rem;
+  border: 1px solid rgba(243, 240, 232, 0.08);
+  border-radius: 1.25rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%), var(--bg-elevated);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+
+.status-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  margin-bottom: 0.75rem;
+  background: var(--muted);
+}
+
+.status-idle,
+.status-ended {
+  background: var(--muted);
+}
+
+.status-connecting {
+  background: #d4a85a;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.status-in_call,
+.status-listening,
+.status-agent_speaking {
+  background: var(--accent);
+  box-shadow: 0 0 0 6px var(--ring);
+}
+
+.status-error {
+  background: var(--danger);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.status-text {
+  margin: 0 0 0.35rem;
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+
+.call-id {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.error {
+  margin: 0 0 1rem;
+  color: #ffb4ac;
+  line-height: 1.4;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.8rem 1.35rem;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.btn:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: #062019;
+  font-weight: 700;
+}
+
+.btn.primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn.secondary {
+  background: rgba(243, 240, 232, 0.08);
+  color: var(--ink);
+}
+
+.btn.danger {
+  background: var(--danger);
+  color: #1a0807;
+  font-weight: 700;
+}
+
+.btn.danger:hover {
+  background: var(--danger-hover);
+}
+
+.transcript {
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(243, 240, 232, 0.08);
+}
+
+.transcript h2 {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.transcript ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.transcript li {
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--ink);
+}
