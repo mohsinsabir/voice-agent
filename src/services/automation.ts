@@ -17,8 +17,9 @@ export type CallCompletedPayload = {
     started_at: string | null;
     ended_at: string | null;
   };
-  caller: {
-    caller_id: string;
+  /** Named `contact` (not `caller`) — n8n expressions block property name `caller`. */
+  contact: {
+    contact_id: string;
     name: string | null;
     phone_e164: string;
     email: string | null;
@@ -63,7 +64,7 @@ async function buildPayload(
   );
   const c = call.rows[0];
 
-  let caller: CallCompletedPayload["caller"] = null;
+  let contact: CallCompletedPayload["contact"] = null;
   if (c?.caller_id) {
     const row = await client.query<{
       id: string;
@@ -78,8 +79,8 @@ async function buildPayload(
     );
     const cl = row.rows[0];
     if (cl) {
-      caller = {
-        caller_id: cl.id,
+      contact = {
+        contact_id: cl.id,
         name: cl.display_name,
         phone_e164: cl.phone_e164,
         email: cl.email,
@@ -155,7 +156,7 @@ async function buildPayload(
       started_at: c?.started_at?.toISOString() ?? null,
       ended_at: c?.ended_at?.toISOString() ?? null,
     },
-    caller,
+    contact,
     appointment,
     lead_qualification,
     handoff_requested: Boolean(handoff.rows[0]),

@@ -100,8 +100,10 @@ Mid-call Twilio/SendGrid `sendConfirmation` is **out of Phase 2 scope** (2026-08
 - [x] `call.completed` → `automation_events` on Retell `call_ended`
 - [x] Optional n8n dispatch (`ENABLE_N8N`)
 - [x] Cloud n8n chosen (not local Docker); starter workflow in `n8n/voice-agent-call-completed.json`
-- [ ] Import + activate cloud workflow; smoke-test `call_ended` → n8n execution
-- [ ] n8n workflow branches (HubSpot / SMS / email)
+- [x] Cloud workflow smoke-test: `call_ended` → n8n Succeeded (2026-08-05)
+- [x] Payload uses `contact` (n8n-safe; not `caller`)
+- [ ] HubSpot Private App + n8n HubSpot upsert node
+- [ ] n8n workflow branches (deals / SMS / email)
 - [ ] HubSpot configured
 - [ ] Twilio + SendGrid (post-call confirmations)
 - [ ] Admin dashboard + RBAC
@@ -137,8 +139,8 @@ Mid-call Twilio/SendGrid `sendConfirmation` is **out of Phase 2 scope** (2026-08
 
 ## In Progress
 
-- Current task: Import cloud n8n workflow, set `.env` `ENABLE_N8N` + webhook URL, smoke-test (`docs/phase-3-setup.md`)
-- Blockers: None for cloud n8n; Retell `call_ended` webhook still needed for live-call automation
+- Current task: HubSpot Private App + add HubSpot upsert node in n8n (`docs/phase-3-setup.md` §B)
+- Blockers: None
 
 ## Issues and Blockers
 

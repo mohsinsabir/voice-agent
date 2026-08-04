@@ -26,8 +26,8 @@ The backend calls a single n8n **Webhook** node trigger URL (`N8N_WEBHOOK_URL`) 
     "started_at": "2026-07-30T18:02:00Z",
     "ended_at": "2026-07-30T18:06:45Z"
   },
-  "caller": {
-    "caller_id": "clr_1122",
+  "contact": {
+    "contact_id": "clr_1122",
     "name": "Jordan Lee",
     "phone_e164": "+15551234567",
     "email": "jordan@example.com",
@@ -61,6 +61,8 @@ X-Automation-Secret: <N8N_WEBHOOK_SECRET shared secret>
 ```
 
 `appointment` and `lead_qualification` objects are `null` when not applicable to the call (e.g., an abandoned call with no booking and no qualification captured).
+
+> **Note:** The person object is named **`contact`** (not `caller`). n8n’s expression sandbox blocks the property name `caller`.
 
 ---
 
