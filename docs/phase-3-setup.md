@@ -1,38 +1,49 @@
-# Phase 3 — Post-call automation (first slice)
+# Phase 3 — Post-call automation (cloud n8n)
 
-Backend now writes `automation_events` (`call.completed`) on Retell `call_ended`, and POSTs to n8n when enabled.
+Backend writes `automation_events` (`call.completed`) on Retell `call_ended`, then POSTs to your **n8n Cloud** webhook when `ENABLE_N8N=true`.
 
-## 1. Close Phase 2 leftovers (optional)
+**Do not run n8n locally** — use your cloud instance (e.g. `https://softsinc.app.n8n.cloud`).
 
-- Wire Retell webhooks → `https://<ngrok>/webhooks/retell` + `X-Internal-Tool-Secret` (needed for `call_ended` → automation)
-- Cancel / lead / barge-in live tests if you still want them on the gate list
+---
 
-## 2. Run n8n locally
+## 1. Retell webhooks (required for real calls)
 
-Requires Docker:
+Point Retell → `https://<your-ngrok>/webhooks/retell`  
+Header: `X-Internal-Tool-Secret: <RETELL_TOOL_SECRET>`  
+Events: at least `call_ended` (also `call_started`, `call_analyzed` if available).
 
-```powershell
-docker compose --profile n8n up -d n8n
-```
+---
 
-Open http://localhost:5678 → create account → new workflow:
+## 2. Import starter workflow in n8n Cloud
 
-1. **Webhook** trigger (POST) — copy the Test/Production URL  
-2. (Optional) IF node: header `X-Automation-Secret` equals your secret  
-3. **Respond to Webhook** 200  
-4. For now: log/set body so you can see the payload
+1. Open your empty workflow (or **Workflows → Add workflow**)
+2. **⋯ menu → Import from file** (or paste)
+3. Import: [`n8n/voice-agent-call-completed.json`](../n8n/voice-agent-call-completed.json)
+4. Open the **Webhook** node → copy **Production URL** (and Test URL if testing)
+5. Open the **IF** node → set your secret to match `.env` `N8N_WEBHOOK_SECRET` (default in import: `change-me-phase-3`)
+6. Rename workflow to `Voice Agent — call.completed`
+7. Toggle **Publish / Active** ON
+
+Webhook path in the import: `voice-agent-call-completed`  
+Example production URL:
+
+`https://softsinc.app.n8n.cloud/webhook/voice-agent-call-completed`
+
+---
 
 ## 3. Enable in `.env`
 
 ```env
 ENABLE_N8N=true
-N8N_WEBHOOK_URL=http://localhost:5678/webhook/<your-path>
+N8N_WEBHOOK_URL=https://softsinc.app.n8n.cloud/webhook/voice-agent-call-completed
 N8N_WEBHOOK_SECRET=change-me-phase-3
 ```
 
-Restart `npm run dev`.
+Use the **exact** Production URL from the Webhook node. Restart `npm run dev`.
 
-## 4. Smoke test without a live call
+---
+
+## 4. Smoke test (no live call)
 
 ```powershell
 $secret = (Get-Content .env | Where-Object { $_ -match '^RETELL_TOOL_SECRET=' }) -replace '^RETELL_TOOL_SECRET=',''
@@ -42,19 +53,37 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3000/webhooks/retell `
   -Body $wh
 ```
 
-Check Supabase `automation_events` for `event_type = call.completed`.  
-If `ENABLE_N8N=true` and n8n is up, status should become `sent`.
+**Pass when:**
+- Supabase `automation_events` has `call.completed` (status `sent` if n8n returned 2xx)
+- n8n **Executions** shows a successful run
 
-Replay the same payload → webhook `ignored_duplicate`; automation row stays one.
+For a first Test URL try: put n8n in listen/test mode, or use Production URL after Publish.
 
-## 5. Still to build in Phase 3
+Replay the same `call_ended` → webhook `ignored_duplicate`; still only one automation row.
+
+---
+
+## 5. Manual webhook ping (optional)
+
+```powershell
+$n8nSecret = "change-me-phase-3"
+$body = @{ event_type = "call.completed"; call = @{ disposition = "booked" }; caller = @{ name = "Test"; phone_e164 = "+923000000000" } } | ConvertTo-Json -Depth 5
+Invoke-RestMethod -Method Post -Uri "https://softsinc.app.n8n.cloud/webhook/voice-agent-call-completed" `
+  -Headers @{ "Content-Type" = "application/json"; "X-Automation-Secret" = $n8nSecret } `
+  -Body $body
+```
+
+---
+
+## 6. Still to build
 
 | Slice | What |
 |---|---|
-| n8n workflow branches | HubSpot / SMS / email by disposition |
-| HubSpot + Twilio + SendGrid accounts | Paid/trial credentials |
-| Dashboard + RBAC | Review calls / leads |
-| Calendar↔DB reconciliation | 15-min orphan job |
-| Backend ack endpoint | n8n → `acknowledged` / `failed` |
+| HubSpot nodes | Upsert contact + deal by disposition |
+| Twilio / SendGrid | Post-call SMS/email |
+| Ack callback | n8n → backend `acknowledged` / `failed` |
+| Dead-letter cron | Retry failed events |
+| Dashboard + RBAC | Staff review UI |
+| Calendar reconciliation | Orphan Calendar↔DB job |
 
-See `docs/n8n-event-map.md` for the full payload and workflow design.
+Design reference: `docs/n8n-event-map.md`.

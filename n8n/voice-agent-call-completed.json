@@ -1,0 +1,169 @@
+{
+  "name": "Voice Agent — call.completed",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "voice-agent-call-completed",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-trigger-001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "voice-agent-call-completed"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "secret-check",
+              "leftValue": "={{ $json.headers['x-automation-secret'] || $json.headers['X-Automation-Secret'] }}",
+              "rightValue": "change-me-phase-3",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-secret-001",
+      "name": "Secret OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [280, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "status",
+              "value": "received",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "event_type",
+              "value": "={{ $json.body.event_type || $json.event_type }}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "event_id",
+              "value": "={{ $json.body.event_id || $json.event_id }}",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "disposition",
+              "value": "={{ $json.body.call.disposition || $json.call.disposition }}",
+              "type": "string"
+            },
+            {
+              "id": "a5",
+              "name": "caller_phone",
+              "value": "={{ $json.body.caller.phone_e164 || $json.caller.phone_e164 }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-normalize-001",
+      "name": "Normalize",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [560, -80]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'processed', event_id: $json.event_id, disposition: $json.disposition }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-ok-001",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [800, -80]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: 'invalid_signature' }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "respond-401-001",
+      "name": "Respond 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [560, 120]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Secret OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Secret OK?": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

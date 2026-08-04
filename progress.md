@@ -27,6 +27,7 @@ AI-powered phone agent for a dental clinic (sample business) that handles inboun
 | Calendar auth | Service account + shared calendar | Server-to-server; no user OAuth in call path | 2026-08-03 |
 | SMS/email timing | Post-call via n8n (Phase 3); skip mid-call Twilio/SendGrid in Phase 2 | Avoid paid trials now; keep live call path lean | 2026-08-04 |
 | Emergency handoff alert | `automation_events` + log (+ optional `STAFF_ALERT_WEBHOOK_URL`) | Honest Phase 2 alert without n8n yet | 2026-08-04 |
+| n8n hosting | n8n Cloud (`softsinc.app.n8n.cloud`) | No local Docker n8n | 2026-08-04 |
 
 ## Environment and Accounts
 
@@ -97,8 +98,10 @@ Mid-call Twilio/SendGrid `sendConfirmation` is **out of Phase 2 scope** (2026-08
 ## Phase 3: Automation and Operational Visibility
 
 - [x] `call.completed` → `automation_events` on Retell `call_ended`
-- [x] Optional n8n dispatch (`ENABLE_N8N` + `docs/phase-3-setup.md`)
-- [ ] n8n workflow (HubSpot / SMS / email branches)
+- [x] Optional n8n dispatch (`ENABLE_N8N`)
+- [x] Cloud n8n chosen (not local Docker); starter workflow in `n8n/voice-agent-call-completed.json`
+- [ ] Import + activate cloud workflow; smoke-test `call_ended` → n8n execution
+- [ ] n8n workflow branches (HubSpot / SMS / email)
 - [ ] HubSpot configured
 - [ ] Twilio + SendGrid (post-call confirmations)
 - [ ] Admin dashboard + RBAC
@@ -134,8 +137,8 @@ Mid-call Twilio/SendGrid `sendConfirmation` is **out of Phase 2 scope** (2026-08
 
 ## In Progress
 
-- Current task: Wire Retell `call_ended` webhook + stand up n8n (`docs/phase-3-setup.md`); then HubSpot/SMS branches
-- Blockers: Retell call webhooks must point at `/webhooks/retell` for automation to fire on real calls
+- Current task: Import cloud n8n workflow, set `.env` `ENABLE_N8N` + webhook URL, smoke-test (`docs/phase-3-setup.md`)
+- Blockers: None for cloud n8n; Retell `call_ended` webhook still needed for live-call automation
 
 ## Issues and Blockers
 
