@@ -1,6 +1,6 @@
 exports.up = (pgm) => {
   const name = process.env.DEFAULT_BUSINESS_NAME || "Bright Smile Dental";
-  const timezone = process.env.DEFAULT_BUSINESS_TIMEZONE || "America/New_York";
+  const timezone = process.env.DEFAULT_BUSINESS_TIMEZONE || "Asia/Karachi";
   const safeName = name.replace(/'/g, "''");
   const safeTz = timezone.replace(/'/g, "''");
 

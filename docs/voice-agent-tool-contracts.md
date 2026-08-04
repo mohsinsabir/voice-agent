@@ -240,28 +240,29 @@ const BookAppointmentInput = z.object({
 {
   "type": "object",
   "properties": {
-    "appointment_id": { "type": "string" },
+    "caller_phone": { "type": "string", "description": "E.164 phone used to find the latest active appointment" },
+    "appointment_id": { "type": "string", "description": "Optional UUID override" },
     "new_slot_start": { "type": "string" }
   },
-  "required": ["appointment_id", "new_slot_start"]
+  "required": ["new_slot_start"]
 }
 ```
-**Zod:** `appointment_id: z.string().uuid()`, `new_slot_start: z.string().datetime()`.
+**Zod:** `caller_phone` (E.164) **or** `appointment_id` (uuid); `new_slot_start` required.
 
-**Validation rules:** appointment must exist, belong to the calling caller (matched by phone number on the call), and be in `status='booked'`. Re-checks new slot availability the same way as `bookAppointment`.
+**Validation rules:** resolve latest `booked`/`rescheduled` appointment by `caller_phone` (preferred) or by `appointment_id`. Re-checks new slot availability the same way as `bookAppointment`.
 
 **Success:** `{ "success": true, "appointment_id", "old_start", "new_start" }`
-**Failure:** `NOT_FOUND`, `NOT_OWNED_BY_CALLER`, `SLOT_NO_LONGER_AVAILABLE`, `ALREADY_CANCELLED`.
-**Idempotency:** dedupe key `${call_id}:rescheduleAppointment:${appointment_id}`; writes an `appointment_events` row (`event_type='rescheduled'`) alongside updating `appointments`.
+**Failure:** `NOT_FOUND`, `SLOT_NO_LONGER_AVAILABLE`, `ALREADY_CANCELLED`.
+**Idempotency:** dedupe on successful `rescheduleAppointment` for the call; writes an `appointment_events` row (`event_type='rescheduled'`).
 
 ---
 
 ### 3.4 `cancelAppointment`
 
-**Input schema:** `{ "appointment_id": "string", "reason": "string (optional)" }`
-**Validation:** same ownership check as reschedule; no-op (idempotent success) if already cancelled.
+**Input schema:** `{ "caller_phone": "string (E.164 preferred)", "appointment_id": "string (optional)", "reason": "string (optional)" }`
+**Validation:** resolve appointment by phone (latest active) or id; no-op (idempotent success) if already cancelled.
 **Success:** `{ "success": true, "appointment_id", "status": "cancelled" }`
-**Failure:** `NOT_FOUND`, `NOT_OWNED_BY_CALLER`.
+**Failure:** `NOT_FOUND`.
 **Side effect:** deletes/cancels the Google Calendar event, logs `appointment_events(event_type='cancelled')`.
 
 ---

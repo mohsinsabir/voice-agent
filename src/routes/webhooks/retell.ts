@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { getEnv } from "../../config/env.js";
 import { logger } from "../../config/logger.js";
 import { recordWebhookEvent } from "../../db/idempotency.js";
+import { emitCallCompleted } from "../../services/automation.js";
 import { withDefaultBusiness } from "../../services/business.js";
 import { ensureCall } from "../../services/calls.js";
 
@@ -88,6 +89,8 @@ export const retellWebhookRoutes: FastifyPluginAsync = async (app) => {
            WHERE id = $1`,
           [callId],
         );
+        // Phase 3: enqueue call.completed (+ optional n8n POST when ENABLE_N8N=true)
+        await emitCallCompleted(client, businessId, callId, providerCallId);
       }
 
       if (eventType === "call_analyzed") {

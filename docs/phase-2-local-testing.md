@@ -87,3 +87,4 @@ Expect `success: true` and a `slots` array (empty is OK if the day is fully book
 2. Register custom functions pointing at `https://<public-url>/tools` with header `X-Internal-Tool-Secret`
 3. Point Retell call webhooks at `https://<public-url>/webhooks/retell`
 4. Enable Google Calendar (steps above) for live booking tools
+5. **Skip** Twilio/SendGrid for Phase 2 — mid-call `sendConfirmation` deferred to Phase 3 (n8n)

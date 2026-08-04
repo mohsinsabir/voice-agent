@@ -19,13 +19,15 @@ const coreSchema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   DEFAULT_BUSINESS_NAME: z.string().min(1).default("Bright Smile Dental"),
-  DEFAULT_BUSINESS_TIMEZONE: z.string().min(1).default("America/New_York"),
+  DEFAULT_BUSINESS_TIMEZONE: z.string().min(1).default("Asia/Karachi"),
   DEFAULT_BUSINESS_ID: z.string().uuid().optional(),
   SUPABASE_PROJECT_REF: z.string().optional(),
   SUPABASE_URL: z.string().url().optional(),
   /** Shared secret for Retell custom-function tool calls (Phase 2). */
   RETELL_TOOL_SECRET: z.string().min(1).optional(),
   HANDOFF_TRANSFER_NUMBER: z.string().optional(),
+  /** Optional URL for emergency handoff POST (Slack/Discord/generic webhook). */
+  STAFF_ALERT_WEBHOOK_URL: z.string().url().optional(),
   ENABLE_RETELL: boolFromEnv.default(false),
   ENABLE_CALENDAR: boolFromEnv.default(false),
   ENABLE_MESSAGING: boolFromEnv.default(false),

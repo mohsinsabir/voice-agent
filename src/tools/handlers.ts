@@ -1,6 +1,8 @@
 import { z } from "zod";
 import * as chrono from "chrono-node";
 import { getEnv } from "../config/env.js";
+import { logger } from "../config/logger.js";
+import { recordAutomationEvent } from "../db/idempotency.js";
 import { getBusinessMeta, withDefaultBusiness } from "../services/business.js";
 import {
   CalendarError,
@@ -30,6 +32,149 @@ const PhoneSchema = z.string().regex(/^\+[1-9]\d{6,14}$/, "Must be E.164");
 const ServiceType = z.enum(["general_checkup", "cleaning", "consultation", "emergency"]);
 
 const DEFAULT_DURATION_MIN = 30;
+
+type ActiveAppointment = {
+  id: string;
+  caller_id: string;
+  calendar_event_id: string;
+  start_time: Date;
+  status: string;
+};
+
+/** Latest active appointment for an E.164 phone (booked or rescheduled). */
+async function findActiveAppointmentByPhone(
+  client: import("pg").PoolClient,
+  businessId: string,
+  phone: string,
+): Promise<ActiveAppointment | null> {
+  const result = await client.query<ActiveAppointment>(
+    `SELECT a.id, a.caller_id, a.calendar_event_id, a.start_time, a.status
+     FROM appointments a
+     JOIN callers c ON c.id = a.caller_id
+     WHERE a.business_id = $1
+       AND c.phone_e164 = $2
+       AND a.status IN ('booked', 'rescheduled')
+     ORDER BY a.start_time DESC
+     LIMIT 1`,
+    [businessId, phone],
+  );
+  return result.rows[0] ?? null;
+}
+
+async function findActiveAppointmentByCallerId(
+  client: import("pg").PoolClient,
+  businessId: string,
+  callerId: string,
+): Promise<ActiveAppointment | null> {
+  const result = await client.query<ActiveAppointment>(
+    `SELECT id, caller_id, calendar_event_id, start_time, status
+     FROM appointments
+     WHERE business_id = $1
+       AND caller_id = $2
+       AND status IN ('booked', 'rescheduled')
+     ORDER BY start_time DESC
+     LIMIT 1`,
+    [businessId, callerId],
+  );
+  return result.rows[0] ?? null;
+}
+
+async function resolveActiveAppointment(
+  client: import("pg").PoolClient,
+  businessId: string,
+  input: { appointment_id?: string; caller_phone?: string; callId?: string },
+): Promise<ActiveAppointment | ToolResult> {
+  if (input.caller_phone) {
+    const row = await findActiveAppointmentByPhone(client, businessId, input.caller_phone);
+    if (!row) {
+      return failResult("NOT_FOUND", "No active appointment found for that phone number");
+    }
+    return row;
+  }
+
+  if (input.appointment_id) {
+    const appt = await client.query<ActiveAppointment>(
+      `SELECT id, caller_id, calendar_event_id, start_time, status
+       FROM appointments WHERE id = $1 AND business_id = $2`,
+      [input.appointment_id, businessId],
+    );
+    if (appt.rows[0]) return appt.rows[0];
+
+    // Retell sometimes passes caller_id from createOrUpdateContact as appointment_id.
+    const byCaller = await findActiveAppointmentByCallerId(
+      client,
+      businessId,
+      input.appointment_id,
+    );
+    if (byCaller) return byCaller;
+
+    return failResult("NOT_FOUND", "Appointment not found");
+  }
+
+  if (input.callId) {
+    const call = await client.query<{ caller_id: string | null }>(
+      `SELECT caller_id FROM calls WHERE id = $1`,
+      [input.callId],
+    );
+    const callerId = call.rows[0]?.caller_id;
+    if (callerId) {
+      const byCaller = await findActiveAppointmentByCallerId(client, businessId, callerId);
+      if (byCaller) return byCaller;
+    }
+  }
+
+  return failResult(
+    "NOT_FOUND",
+    "No active appointment found — confirm the caller's phone and that a booking exists",
+  );
+}
+
+function isAppointmentRow(v: ActiveAppointment | ToolResult): v is ActiveAppointment {
+  return "calendar_event_id" in v;
+}
+
+const UuidSchema = z.string().uuid();
+
+/** Normalize Retell args: phone may arrive as caller_phone or mis-labeled appointment_id. */
+function normalizeApptLookupArgs(args: Record<string, unknown>): {
+  caller_phone?: string;
+  appointment_id?: string;
+  new_slot_start?: string;
+  reason?: string;
+  duration_minutes?: number;
+} {
+  const phoneRaw =
+    args.caller_phone ?? args.phone ?? args.callerPhone ?? args.phone_number ?? null;
+  let caller_phone =
+    typeof phoneRaw === "string" && PhoneSchema.safeParse(phoneRaw).success
+      ? phoneRaw
+      : undefined;
+
+  let appointment_id: string | undefined;
+  const idRaw = args.appointment_id ?? args.appointmentId ?? null;
+  if (typeof idRaw === "string" && idRaw.length > 0) {
+    if (PhoneSchema.safeParse(idRaw).success) {
+      caller_phone = caller_phone ?? idRaw;
+    } else if (UuidSchema.safeParse(idRaw).success) {
+      appointment_id = idRaw;
+    }
+    // else: ignore garbage "appointment_id" (was causing INVALID_INPUT Invalid uuid)
+  }
+
+  const out: {
+    caller_phone?: string;
+    appointment_id?: string;
+    new_slot_start?: string;
+    reason?: string;
+    duration_minutes?: number;
+  } = {};
+  if (caller_phone) out.caller_phone = caller_phone;
+  if (appointment_id) out.appointment_id = appointment_id;
+  if (typeof args.new_slot_start === "string") out.new_slot_start = args.new_slot_start;
+  if (typeof args.reason === "string") out.reason = args.reason;
+  if (typeof args.duration_minutes === "number") out.duration_minutes = args.duration_minutes;
+  return out;
+}
 
 async function runLogged(
   req: ToolRequest,
@@ -287,13 +432,15 @@ async function bookAppointment(req: ToolRequest): Promise<ToolResult> {
 }
 
 async function rescheduleAppointment(req: ToolRequest): Promise<ToolResult> {
+  const normalized = normalizeApptLookupArgs(req.args);
   const parsed = z
     .object({
-      appointment_id: z.string().uuid(),
+      caller_phone: PhoneSchema.optional(),
+      appointment_id: z.string().uuid().optional(),
       new_slot_start: z.string().min(1),
       duration_minutes: z.number().int().min(15).max(180).default(DEFAULT_DURATION_MIN),
     })
-    .safeParse(req.args);
+    .safeParse({ ...normalized, duration_minutes: normalized.duration_minutes ?? DEFAULT_DURATION_MIN });
   if (!parsed.success) {
     return failResult("INVALID_INPUT", parsed.error.issues[0]?.message ?? "Invalid input");
   }
@@ -302,20 +449,18 @@ async function rescheduleAppointment(req: ToolRequest): Promise<ToolResult> {
   }
 
   return runLogged(req, "rescheduleAppointment", async ({ client, businessId, callId }) => {
+    const prior = await findSuccessfulToolResult(client, callId, "rescheduleAppointment");
+    if (prior) return { result: prior };
+
     const biz = await getBusinessMeta(client, businessId);
-    const appt = await client.query<{
-      id: string;
-      caller_id: string;
-      calendar_event_id: string;
-      start_time: Date;
-      status: string;
-    }>(
-      `SELECT id, caller_id, calendar_event_id, start_time, status
-       FROM appointments WHERE id = $1 AND business_id = $2`,
-      [parsed.data.appointment_id, businessId],
-    );
-    const row = appt.rows[0];
-    if (!row) return failResult("NOT_FOUND", "Appointment not found");
+    const resolved = await resolveActiveAppointment(client, businessId, {
+      ...(parsed.data.caller_phone ? { caller_phone: parsed.data.caller_phone } : {}),
+      ...(parsed.data.appointment_id ? { appointment_id: parsed.data.appointment_id } : {}),
+      callId,
+    });
+    if (!isAppointmentRow(resolved)) return resolved;
+    const row = resolved;
+
     if (row.status === "cancelled") {
       return failResult("ALREADY_CANCELLED", "Appointment is already cancelled");
     }
@@ -323,14 +468,10 @@ async function rescheduleAppointment(req: ToolRequest): Promise<ToolResult> {
       return failResult("NOT_FOUND", "Appointment is not active");
     }
 
-    const callCaller = await client.query<{ caller_id: string | null }>(
-      `SELECT caller_id FROM calls WHERE id = $1`,
-      [callId],
+    await client.query(
+      `UPDATE calls SET caller_id = $1 WHERE id = $2 AND caller_id IS NULL`,
+      [row.caller_id, callId],
     );
-    const linked = callCaller.rows[0]?.caller_id;
-    if (linked && linked !== row.caller_id) {
-      return failResult("NOT_OWNED_BY_CALLER", "Appointment does not belong to this caller");
-    }
 
     const start = parseSlotStart(parsed.data.new_slot_start);
     if (!start) {
@@ -406,12 +547,17 @@ async function rescheduleAppointment(req: ToolRequest): Promise<ToolResult> {
 }
 
 async function cancelAppointment(req: ToolRequest): Promise<ToolResult> {
+  const normalized = normalizeApptLookupArgs(req.args);
   const parsed = z
     .object({
-      appointment_id: z.string().uuid(),
+      caller_phone: PhoneSchema.optional(),
+      appointment_id: z.string().uuid().optional(),
       reason: z.string().optional(),
     })
-    .safeParse(req.args);
+    .refine((d) => Boolean(d.caller_phone || d.appointment_id), {
+      message: "caller_phone is required",
+    })
+    .safeParse(normalized);
   if (!parsed.success) {
     return failResult("INVALID_INPUT", parsed.error.issues[0]?.message ?? "Invalid input");
   }
@@ -420,30 +566,38 @@ async function cancelAppointment(req: ToolRequest): Promise<ToolResult> {
   }
 
   return runLogged(req, "cancelAppointment", async ({ client, businessId, callId }) => {
-    const appt = await client.query<{
-      id: string;
-      caller_id: string;
-      calendar_event_id: string;
-      status: string;
-    }>(
-      `SELECT id, caller_id, calendar_event_id, status
-       FROM appointments WHERE id = $1 AND business_id = $2`,
-      [parsed.data.appointment_id, businessId],
-    );
-    const row = appt.rows[0];
-    if (!row) return failResult("NOT_FOUND", "Appointment not found");
+    const resolved = await resolveActiveAppointment(client, businessId, {
+      ...(parsed.data.caller_phone ? { caller_phone: parsed.data.caller_phone } : {}),
+      ...(parsed.data.appointment_id ? { appointment_id: parsed.data.appointment_id } : {}),
+      callId,
+    });
+    if (!isAppointmentRow(resolved)) {
+      // Cancel by phone when already cancelled / none — check cancelled for idempotent OK
+      if (parsed.data.caller_phone) {
+        const cancelled = await client.query<{ id: string }>(
+          `SELECT a.id FROM appointments a
+           JOIN callers c ON c.id = a.caller_id
+           WHERE a.business_id = $1 AND c.phone_e164 = $2 AND a.status = 'cancelled'
+           ORDER BY a.updated_at DESC LIMIT 1`,
+          [businessId, parsed.data.caller_phone],
+        );
+        if (cancelled.rows[0]) {
+          return okResult({ appointment_id: cancelled.rows[0].id, status: "cancelled" });
+        }
+      }
+      return resolved;
+    }
+    const row = resolved;
 
     if (row.status === "cancelled") {
       return okResult({ appointment_id: row.id, status: "cancelled" });
     }
 
-    const callCaller = await client.query<{ caller_id: string | null }>(
-      `SELECT caller_id FROM calls WHERE id = $1`,
-      [callId],
-    );
-    const linked = callCaller.rows[0]?.caller_id;
-    if (linked && linked !== row.caller_id) {
-      return failResult("NOT_OWNED_BY_CALLER", "Appointment does not belong to this caller");
+    if (parsed.data.caller_phone) {
+      await client.query(
+        `UPDATE calls SET caller_id = $1 WHERE id = $2 AND caller_id IS NULL`,
+        [row.caller_id, callId],
+      );
     }
 
     try {
@@ -482,7 +636,7 @@ async function createOrUpdateContact(req: ToolRequest): Promise<ToolResult> {
     return failResult("INVALID_PHONE_FORMAT", parsed.error.issues[0]?.message ?? "Invalid input");
   }
 
-  return runLogged(req, "createOrUpdateContact", async ({ client, businessId }) => {
+  return runLogged(req, "createOrUpdateContact", async ({ client, businessId, callId }) => {
     const result = await client.query<{ id: string }>(
       `INSERT INTO callers (business_id, phone_e164, display_name, email)
        VALUES ($1, $2, $3, $4)
@@ -494,7 +648,9 @@ async function createOrUpdateContact(req: ToolRequest): Promise<ToolResult> {
        RETURNING id`,
       [businessId, parsed.data.phone, parsed.data.name, parsed.data.email ?? null],
     );
-    return okResult({ caller_id: result.rows[0]!.id });
+    const callerId = result.rows[0]!.id;
+    await client.query(`UPDATE calls SET caller_id = $1 WHERE id = $2`, [callerId, callId]);
+    return okResult({ caller_id: callerId });
   });
 }
 
@@ -595,12 +751,70 @@ async function requestHumanHandoff(req: ToolRequest): Promise<ToolResult> {
     );
     await client.query(`UPDATE calls SET disposition = 'human_handoff' WHERE id = $1`, [callId]);
 
-    const immediate = parsed.data.urgency === "emergency";
+    await recordAutomationEvent(
+      {
+        callId,
+        eventType: "handoff.requested",
+        dedupeKey: `${callId}:handoff.requested`,
+        payload: {
+          reason: parsed.data.reason,
+          urgency: parsed.data.urgency,
+          transfer_number: transfer,
+        },
+      },
+      client,
+    );
+
+    let immediate_alert_sent = false;
+    if (parsed.data.urgency === "emergency") {
+      immediate_alert_sent = await sendEmergencyStaffAlert({
+        callId,
+        reason: parsed.data.reason,
+        transfer,
+      });
+    }
+
     return okResult({
       transfer_number: transfer,
-      immediate_alert_sent: immediate,
+      immediate_alert_sent,
     });
   });
+}
+
+/** Best-effort POST to STAFF_ALERT_WEBHOOK_URL; logs always. */
+async function sendEmergencyStaffAlert(input: {
+  callId: string;
+  reason: string;
+  transfer: string;
+}): Promise<boolean> {
+  const url = getEnv().STAFF_ALERT_WEBHOOK_URL;
+  logger.error(
+    { callId: input.callId, reason: input.reason, transfer: input.transfer },
+    "Emergency handoff requested",
+  );
+  if (!url) {
+    // Logged above counts as local alert; external webhook optional until Phase 3.
+    return true;
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "handoff.requested",
+        urgency: "emergency",
+        ...input,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return res.ok;
+  } catch (err) {
+    logger.warn({ err }, "Staff alert webhook failed");
+    return false;
+  }
 }
 
 async function sendConfirmation(req: ToolRequest): Promise<ToolResult> {
