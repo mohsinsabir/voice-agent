@@ -90,6 +90,30 @@
               "name": "contact_email",
               "value": "={{ ($json.body['contact'] || $json['contact'] || {})['email'] || '' }}",
               "type": "string"
+            },
+            {
+              "id": "a8",
+              "name": "appointment_id",
+              "value": "={{ ($json.body['appointment'] || $json['appointment'] || {})['appointment_id'] || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a9",
+              "name": "appointment_status",
+              "value": "={{ ($json.body['appointment'] || $json['appointment'] || {})['status'] || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a10",
+              "name": "service_type",
+              "value": "={{ ($json.body['appointment'] || $json['appointment'] || {})['service_type'] || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "a11",
+              "name": "appointment_start",
+              "value": "={{ ($json.body['appointment'] || $json['appointment'] || {})['start_time'] || '' }}",
+              "type": "string"
             }
           ]
         },
@@ -113,7 +137,7 @@
       "name": "Respond 200",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1000, -80]
+      "position": [1240, -80]
     },
     {
       "parameters": {
@@ -131,15 +155,15 @@
     },
     {
       "parameters": {
-        "content": "## Next: HubSpot\n1. Add **HubSpot** node after Normalize (before Respond 200)\n2. Operation: Create or update contact\n3. Match on phone / email\n4. Map: firstname/lastname from contact_name, phone from contact_phone, email from contact_email\n5. Connect HubSpot credentials (Private App token)\n\nPayload field is `contact` (not `caller`) — n8n blocks the name `caller`.",
-        "height": 320,
-        "width": 360
+        "content": "## HubSpot contact (done)\nMap Email / First Name / Phone to:\n`contact_email`, `contact_name`, `contact_phone`\n\n## Next: Deal\n1. After contact upsert, IF `appointment_id` is not empty\n2. HubSpot → **Create a deal**\n3. Name: `contact_name — service_type`\n4. Associate the upserted contact\n5. See `docs/phase-3-setup.md` §C",
+        "height": 360,
+        "width": 380
       },
       "id": "note-hubspot-001",
-      "name": "HubSpot next steps",
+      "name": "HubSpot contact + deal",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [720, -280]
+      "position": [720, -320]
     }
   ],
   "connections": {

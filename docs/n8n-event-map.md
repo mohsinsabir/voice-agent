@@ -139,8 +139,8 @@ flowchart TD
 
 ### Node 4 — Set: Normalize Payload
 - Flatten nested fields into workflow variables used downstream:
-  - `caller_name`, `caller_phone`, `caller_email`
-  - `appointment_start_local` (formatted for human-readable SMS/email)
+  - `contact_name`, `contact_phone`, `contact_email` (not `caller_*` — n8n blocks `caller`)
+  - `appointment_id`, `appointment_status`, `service_type`, `appointment_start`
   - `disposition`, `qualification_status`, `handoff_requested`
 
 ### Node 5 — HubSpot: Upsert Contact

@@ -1,0 +1,101 @@
+.hero {
+  position: relative;
+  padding-block: clamp(2.5rem, 6vw, 5rem) clamp(3rem, 7vw, 6rem);
+}
+
+.hero__inner {
+  display: grid;
+  gap: clamp(2.5rem, 5vw, 4rem);
+  align-items: center;
+}
+
+.hero__title {
+  margin-top: 1.5rem;
+  font-size: clamp(2.4rem, 6.4vw, 4.15rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+
+.hero__title-accent {
+  font-size: 0.92em;
+  color: var(--ink-dim);
+  letter-spacing: -0.02em;
+}
+
+.hero__lede {
+  margin-top: 1.35rem;
+  max-width: 34rem;
+  font-size: clamp(1rem, 1.7vw, 1.1rem);
+  line-height: 1.65;
+  color: var(--ink-dim);
+}
+
+.hero__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hero__pills li {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--ink-dim);
+}
+
+.hero__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin: 2.1rem 0 0;
+  padding-top: 1.6rem;
+  border-top: 1px solid var(--line);
+  max-width: 30rem;
+}
+
+.hero__stat dt {
+  font-size: clamp(1.45rem, 3vw, 1.8rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  background: var(--grad-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero__stat dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--ink-mute);
+}
+
+.hero__console {
+  position: relative;
+}
+
+/* Halo behind the glass console so it lifts off the page. */
+.hero__console::before {
+  content: "";
+  position: absolute;
+  inset: -12% -8%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(47, 227, 176, 0.16), transparent 72%);
+  filter: blur(40px);
+}
+
+@media (min-width: 1000px) {
+  .hero__inner {
+    grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+    gap: clamp(2.5rem, 5vw, 4.5rem);
+  }
+}

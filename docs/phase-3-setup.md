@@ -9,86 +9,146 @@ Payload uses **`contact`** (not `caller`) — n8n blocks the property name `call
 ## Done so far
 
 - [x] Emit `call.completed` + POST to n8n  
-- [x] Cloud webhook workflow smoke-tested (Succeeded execution)
+- [x] Cloud webhook smoke-test  
+- [x] HubSpot **contact** upsert (terminal + Contacts UI, 2026-08-05)
 
 ---
 
-## A. Keep Retell webhooks pointed at your API
+## A. Retell webhooks
 
 `https://<ngrok>/webhooks/retell` + header `X-Internal-Tool-Secret`
 
 ---
 
-## B. HubSpot (next)
+## B. HubSpot contact (done)
 
-### B1. Create a free HubSpot account
-1. Go to [hubspot.com](https://www.hubspot.com/products/crm) → Free CRM  
-2. Finish signup
+Normalize → HubSpot **Create or update a contact**:
 
-### B2. Create a Private App (API token)
-1. HubSpot → ⚙️ **Settings** → **Integrations** → **Private Apps**  
-2. **Create a private app**  
-3. Name: `voice-agent`  
-4. Scopes (minimum):  
-   - `crm.objects.contacts.read`  
-   - `crm.objects.contacts.write`  
-   - `crm.objects.deals.read`  
-   - `crm.objects.deals.write`  
-5. **Create app** → copy the **access token** (show once)
+| HubSpot field | Expression |
+|---|---|
+| Email | `{{ $json.contact_email }}` |
+| First Name | `{{ $json.contact_name }}` |
+| Phone Number | `{{ $json.contact_phone }}` |
 
-### B3. Put token in `.env` (optional for n8n — n8n can store its own credential)
-
-```env
-ENABLE_HUBSPOT=true
-HUBSPOT_ACCESS_TOKEN=pat-na1-xxxxxxxx
-```
-
-For **n8n Cloud**, you usually add the token as an **n8n Credential**, not only in `.env`.
-
-### B4. Add HubSpot node in n8n
-1. Open workflow **Voice Agent — call.completed** → **Editor**  
-2. Between **Normalize** and **Respond 200**, click **+**  
-3. Search **HubSpot** → add node  
-4. Create credential → paste Private App token  
-5. Resource: **Contact**  
-6. Operation: **Create or update** (upsert)  
-7. Map fields from Normalize output:  
-   - Phone → `{{ $json.contact_phone }}`  
-   - Email → `{{ $json.contact_email }}` (if present)  
-   - First name / name → `{{ $json.contact_name }}`  
-8. Connect: Normalize → HubSpot → Respond 200  
-9. **Publish**
-
-### B5. Test with a call that has a contact
-Smoke `call_ended` alone often has `contact: null` (no tools ran). Prefer:
-
-1. Live Retell call that runs `createOrUpdateContact`, then ends, **or**  
-2. Tool call contact first, then `call_ended` for that same Retell `call_id`
-
-Check HubSpot → **Contacts** for the phone/name.
-
----
-
-## C. Smoke webhook again (after HubSpot node)
+Terminal smoke (unique `$callId` each run):
 
 ```powershell
 $secret = (Get-Content .env | Where-Object { $_ -match '^RETELL_TOOL_SECRET=' }) -replace '^RETELL_TOOL_SECRET=',''
-$wh = @{ event = "call_ended"; call = @{ call_id = "phase3-hubspot-001" } } | ConvertTo-Json -Depth 5
+$callId = "phase3-hs-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/tools `
+  -Headers @{ "X-Internal-Tool-Secret" = $secret; "Content-Type" = "application/json" } `
+  -Body (@{
+    call = @{ call_id = $callId; agent_id = "agent-dev" }
+    name = "createOrUpdateContact"
+    args = @{ name = "Jordan Lee"; phone = "+15551234567"; email = "jordan+voice@example.com" }
+  } | ConvertTo-Json -Depth 5)
+
 Invoke-RestMethod -Method Post -Uri http://localhost:3000/webhooks/retell `
   -Headers @{ "X-Internal-Tool-Secret" = $secret; "Content-Type" = "application/json" } `
-  -Body $wh
+  -Body (@{ event = "call_ended"; call = @{ call_id = $callId } } | ConvertTo-Json -Depth 5)
 ```
 
 ---
 
-## D. Still later in Phase 3
+## C. HubSpot deal (next)
+
+When the payload includes `appointment`, create/update a HubSpot **Deal** linked to the contact.
+
+### C1. Expand Normalize
+
+Add fields (same pattern as contact_*):
+
+| Name | Expression |
+|---|---|
+| `appointment_id` | `{{ ($json.body['appointment'] \|\| $json['appointment'] \|\| {})['appointment_id'] \|\| '' }}` |
+| `appointment_status` | `{{ ($json.body['appointment'] \|\| $json['appointment'] \|\| {})['status'] \|\| '' }}` |
+| `service_type` | `{{ ($json.body['appointment'] \|\| $json['appointment'] \|\| {})['service_type'] \|\| '' }}` |
+| `appointment_start` | `{{ ($json.body['appointment'] \|\| $json['appointment'] \|\| {})['start_time'] \|\| '' }}` |
+
+### C2. Branch after contact upsert
+
+1. After **Create or update a contact**, add **IF** → **Has appointment?**  
+   - Condition: `{{ $json.appointment_id }}` **is not empty**  
+   - **Important:** IF input must still have Normalize fields. If HubSpot output replaces them, either:  
+     - turn on HubSpot **Include Other Input Fields** (if available), or  
+     - use expressions from Normalize: `{{ $('Normalize').item.json.appointment_id }}`
+2. **true** → HubSpot **Create a deal** (or Create or update deal)  
+3. **false** → skip to **Respond 200**  
+4. Deal success → **Respond 200**
+
+### C3. Create a deal — map fields
+
+| Field | Value |
+|---|---|
+| Deal name | `{{ $('Normalize').item.json.contact_name }} — {{ $('Normalize').item.json.service_type }}` |
+| Pipeline / stage | Default pipeline; stage e.g. **Appointment scheduled** (or first open stage) |
+| Associate contact | Contact id from upsert node (often `{{ $json.id }}` or `{{ $json.vid }}` — pick from HubSpot OUTPUT schema) |
+| Optional note | `status={{ $('Normalize').item.json.appointment_status }} start={{ $('Normalize').item.json.appointment_start }}` |
+
+Ensure Service Key / Private App has **deals** read + write scopes. Re-auth credential if deals were not enabled at create time.
+
+### C4. Terminal test (needs Calendar)
+
+`ENABLE_CALENDAR=true`. Use one new `$callId`:
+
+```powershell
+$secret = (Get-Content .env | Where-Object { $_ -match '^RETELL_TOOL_SECRET=' }) -replace '^RETELL_TOOL_SECRET=',''
+$callId = "phase3-deal-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+
+# Contact
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/tools `
+  -Headers @{ "X-Internal-Tool-Secret" = $secret; "Content-Type" = "application/json" } `
+  -Body (@{
+    call = @{ call_id = $callId; agent_id = "agent-dev" }
+    name = "createOrUpdateContact"
+    args = @{ name = "Jordan Lee"; phone = "+15551234567"; email = "jordan+voice@example.com" }
+  } | ConvertTo-Json -Depth 5)
+
+# Pick a free slot
+$avail = Invoke-RestMethod -Method Post -Uri http://localhost:3000/tools `
+  -Headers @{ "X-Internal-Tool-Secret" = $secret; "Content-Type" = "application/json" } `
+  -Body (@{
+    call = @{ call_id = $callId }
+    name = "checkAvailability"
+    args = @{ date_phrase = "tomorrow afternoon"; service_type = "cleaning" }
+  } | ConvertTo-Json -Depth 5)
+$slot = $avail.result.slots[0].start
+if (-not $slot) { throw "No free slot — try another date_phrase" }
+
+# Book (links appointment to this call_id)
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/tools `
+  -Headers @{ "X-Internal-Tool-Secret" = $secret; "Content-Type" = "application/json" } `
+  -Body (@{
+    call = @{ call_id = $callId }
+    name = "bookAppointment"
+    args = @{
+      slot_start = $slot
+      service_type = "cleaning"
+      caller_name = "Jordan Lee"
+      caller_phone = "+15551234567"
+      caller_email = "jordan+voice@example.com"
+    }
+  } | ConvertTo-Json -Depth 5)
+
+# Fire automation → n8n → contact + deal
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/webhooks/retell `
+  -Headers @{ "X-Internal-Tool-Secret" = $secret; "Content-Type" = "application/json" } `
+  -Body (@{ event = "call_ended"; call = @{ call_id = $callId } } | ConvertTo-Json -Depth 5)
+```
+
+**Expect:** n8n Succeeded; HubSpot → **Deals** shows e.g. `Jordan Lee — cleaning`.
+
+---
+
+## D. Later Phase 3
 
 | Slice | What |
 |---|---|
-| HubSpot deals | Booked / lead stages |
+| IF skip HubSpot when no email | Avoid bad-request on phone-only calls |
 | Twilio + SendGrid | SMS/email confirmations |
 | Ack callback | n8n → `acknowledged` |
 | Dashboard | Staff UI |
 | Reconciliation | Calendar↔DB orphans |
 
-Design: `docs/n8n-event-map.md`. Starter import: `n8n/voice-agent-call-completed.json` (updated with `contact_*` fields).
+Design: `docs/n8n-event-map.md`. Starter: `n8n/voice-agent-call-completed.json`.

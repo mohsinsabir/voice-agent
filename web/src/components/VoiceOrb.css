@@ -1,0 +1,56 @@
+.orb {
+  position: relative;
+  width: min(19rem, 62vw);
+  aspect-ratio: 1;
+  margin-inline: auto;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+}
+
+.orb__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* Expanding rings only while the agent is mid-sentence. */
+.orb__ripple {
+  position: absolute;
+  width: 44%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid rgba(47, 227, 176, 0.5);
+  opacity: 0;
+  z-index: 0;
+}
+
+.orb--agent_speaking .orb__ripple {
+  animation: orb-ripple 2.4s var(--ease-out) infinite;
+}
+
+.orb--agent_speaking .orb__ripple--delayed {
+  animation-delay: 1.2s;
+}
+
+.orb--connecting .orb__ripple {
+  border-color: rgba(255, 196, 107, 0.5);
+  animation: orb-ripple 1.5s var(--ease-out) infinite;
+}
+
+.orb--connecting .orb__ripple--delayed {
+  animation-delay: 0.75s;
+}
+
+@keyframes orb-ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}

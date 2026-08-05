@@ -1,0 +1,47 @@
+:root {
+  color-scheme: dark;
+
+  --bg-0: #04060c;
+  --bg-1: #070b14;
+  --bg-2: #0b1020;
+
+  --glass: rgba(255, 255, 255, 0.035);
+  --glass-2: rgba(255, 255, 255, 0.06);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-2: rgba(255, 255, 255, 0.14);
+
+  --ink: #e9eefc;
+  --ink-dim: #a6b3d0;
+  --ink-mute: #6c7b9c;
+
+  --mint: #2fe3b0;
+  --mint-soft: #7ff2d3;
+  --iris: #6d8bff;
+  --violet: #b184ff;
+  --amber: #ffc46b;
+  --rose: #ff7a85;
+
+  --grad-brand: linear-gradient(135deg, #2fe3b0 0%, #6d8bff 52%, #b184ff 100%);
+  --grad-heading: linear-gradient(178deg, #ffffff 8%, #a9bade 100%);
+
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --r-xs: 8px;
+  --r-sm: 12px;
+  --r-md: 18px;
+  --r-lg: 26px;
+  --r-xl: 34px;
+  --r-pill: 999px;
+
+  --shadow-card: 0 30px 70px -34px rgba(0, 0, 0, 0.9);
+  --shadow-float: 0 50px 110px -40px rgba(4, 10, 26, 0.95);
+  --shadow-glow: 0 0 0 1px rgba(47, 227, 176, 0.22), 0 18px 50px -18px rgba(47, 227, 176, 0.45);
+
+  --maxw: 1200px;
+  --gutter: clamp(1.15rem, 4vw, 2.5rem);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}

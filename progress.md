@@ -6,7 +6,7 @@ AI-powered phone agent for a dental clinic (sample business) that handles inboun
 
 ## Current Status
 
-- Current phase: **Phase 3 — Automation** (emit `call.completed`; n8n/HubSpot/dashboard next)
+- Current phase: **Phase 3 — Automation** (HubSpot contact done; deals next)
 - Overall completion estimate: ~70%
 - Last updated: 2026-08-04
 
@@ -35,12 +35,12 @@ AI-powered phone agent for a dental clinic (sample business) that handles inboun
 - [ ] Phone number configured — Phase 2 (optional after web call)
 - [x] AI model API configured (via Retell)
 - [x] Calendar API configured — Phase 2 (live booking verified 2026-08-04)
-- [ ] CRM configured (HubSpot) — Phase 3
+- [x] CRM configured (HubSpot contact upsert via n8n) — deals next
 - [ ] Twilio SMS configured — Phase 3 (mid-call messaging skipped)
 - [ ] SendGrid configured — Phase 3 (mid-call messaging skipped)
 - [x] Database configured (Supabase `voice-agent` / `xffzulhvfqcigbmbnhcv`)
 - [x] Local app `DATABASE_URL` (Session pooler) working
-- [ ] n8n configured — Phase 3
+- [x] n8n configured — Phase 3 (cloud webhook + HubSpot contact)
 - [ ] Deployment environment configured — Phase 4
 
 ## Phase 0: Spec Lock
@@ -102,9 +102,9 @@ Mid-call Twilio/SendGrid `sendConfirmation` is **out of Phase 2 scope** (2026-08
 - [x] Cloud n8n chosen (not local Docker); starter workflow in `n8n/voice-agent-call-completed.json`
 - [x] Cloud workflow smoke-test: `call_ended` → n8n Succeeded (2026-08-05)
 - [x] Payload uses `contact` (n8n-safe; not `caller`)
-- [ ] HubSpot Private App + n8n HubSpot upsert node
-- [ ] n8n workflow branches (deals / SMS / email)
-- [ ] HubSpot configured
+- [x] HubSpot contact upsert via n8n (2026-08-05)
+- [ ] HubSpot deal on `appointment` present (`docs/phase-3-setup.md` §C)
+- [ ] n8n branches (SMS / email)
 - [ ] Twilio + SendGrid (post-call confirmations)
 - [ ] Admin dashboard + RBAC
 - [ ] Calendar↔DB reconciliation job
@@ -137,9 +137,14 @@ Mid-call Twilio/SendGrid `sendConfirmation` is **out of Phase 2 scope** (2026-08
 - Live reschedule by `caller_phone` verified
 - Phase 3 start: `emitCallCompleted` on `call_ended` + n8n compose profile + `docs/phase-3-setup.md`
 
+### 2026-08-05
+
+- Cloud n8n `call.completed` → HubSpot contact upsert verified (Jordan Lee)
+- Next: HubSpot deal branch when `appointment` present
+
 ## In Progress
 
-- Current task: HubSpot Private App + add HubSpot upsert node in n8n (`docs/phase-3-setup.md` §B)
+- Current task: HubSpot **deal** when appointment present (`docs/phase-3-setup.md` §C)
 - Blockers: None
 
 ## Issues and Blockers
@@ -194,11 +199,11 @@ Sample tool latencies from live/API calls (ms):
 |---|---|---|---|
 | Retell AI | Tools + web call OK | 2026-08-04 | Republish prompt; wire call webhooks |
 | Google Calendar | Live booking OK | 2026-08-04 | SA + shared Bright Smile Dental calendar |
-| HubSpot | Not configured | — | Phase 3 |
-| Twilio SMS | Deferred | — | Phase 3 (skip mid-call in Phase 2) |
-| SendGrid | Deferred | — | Phase 3 (skip mid-call in Phase 2) |
+| HubSpot | Contact upsert OK | 2026-08-05 | Deals next |
+| Twilio SMS | Deferred | — | Phase 3 |
+| SendGrid | Deferred | — | Phase 3 |
 | Supabase/Postgres | Active + healthy locally | 2026-07-30 | Session pooler |
-| n8n | Not configured | — | Phase 3 |
+| n8n | Cloud workflow OK | 2026-08-05 | Contact node live; deals next |
 
 ## Change Log
 
@@ -213,3 +218,4 @@ Sample tool latencies from live/API calls (ms):
 | 2026-08-04 | Defer mid-call Twilio/SendGrid to Phase 3 | Skip messaging for now |
 | 2026-08-04 | Phase 2 gate prep (handoff alert, prompts, API checks) | Close Phase 2 |
 | 2026-08-04 | Live reschedule by phone; start Phase 3 automation emit | Post-call n8n path |
+| 2026-08-05 | n8n → HubSpot contact upsert verified | Phase 3 CRM slice |
