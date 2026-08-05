@@ -4,11 +4,11 @@ Keep `npm run dev` + `ngrok http 3000` running. Paste updated `docs/system-promp
 
 ## A. Retell webhook (dashboard)
 
-1. Retell → Agent / Account → **Webhooks**
-2. URL: `https://<your-ngrok>/webhooks/retell`
-3. Header: `X-Internal-Tool-Secret: <RETELL_TOOL_SECRET from .env>`
-4. Events: `call_started`, `call_ended`, `call_analyzed` (or “all”)
-5. After any test call, check Supabase `webhook_events` + `transcript_segments`
+1. Retell → Agent → **Webhook Settings**
+2. URL: `https://<your-ngrok>/webhooks/retell` (not under `/tools`)
+3. Events: `call_started`, `call_ended`, `call_analyzed`
+4. Auth: Retell signs with `x-retell-signature` (verified via `RETELL_API_KEY`). No custom secret header needed for agent webhooks. Manual/PowerShell tests still use `X-Internal-Tool-Secret`.
+5. After any test call, check Supabase `webhook_events` + `transcript_segments` + n8n when `ENABLE_N8N=true`
 
 ### Replay idempotency (API)
 

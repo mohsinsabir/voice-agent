@@ -16,7 +16,7 @@ Payload uses **`contact`** (not `caller`) — n8n blocks the property name `call
 
 ## A. Retell webhooks
 
-`https://<ngrok>/webhooks/retell` + header `X-Internal-Tool-Secret`
+`https://<ngrok>/webhooks/retell` — Retell signs with `x-retell-signature` (verified via `RETELL_API_KEY`). Manual tests may still send `X-Internal-Tool-Secret`.
 
 ---
 

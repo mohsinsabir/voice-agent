@@ -1,10 +1,11 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { getEnv } from "../../config/env.js";
 import { logger } from "../../config/logger.js";
 import { recordWebhookEvent } from "../../db/idempotency.js";
 import { emitCallCompleted } from "../../services/automation.js";
 import { withDefaultBusiness } from "../../services/business.js";
 import { ensureCall } from "../../services/calls.js";
+import { verifyRetellSignature } from "../../services/retell-signature.js";
 
 type RetellWebhookBody = {
   event?: string;
@@ -32,24 +33,39 @@ function extractCall(body: RetellWebhookBody) {
   return body.call ?? body.data;
 }
 
+function authorizeRetellWebhook(request: FastifyRequest): boolean {
+  const env = getEnv();
+  const secret = request.headers["x-internal-tool-secret"];
+  const signature = request.headers["x-retell-signature"];
+  const rawBody = (request as FastifyRequest & { rawBody?: string }).rawBody ?? "";
+
+  // Local PowerShell / manual tests use the shared tool secret.
+  const secretOk =
+    typeof secret === "string" &&
+    Boolean(env.RETELL_TOOL_SECRET) &&
+    secret === env.RETELL_TOOL_SECRET;
+  if (secretOk) return true;
+
+  // Live Retell agent webhooks sign with the API key (x-retell-signature).
+  if (
+    typeof signature === "string" &&
+    env.RETELL_API_KEY &&
+    verifyRetellSignature(rawBody, env.RETELL_API_KEY, signature)
+  ) {
+    return true;
+  }
+
+  if (typeof signature === "string" && !env.RETELL_API_KEY) {
+    logger.warn("Retell signature present but RETELL_API_KEY missing; rejecting");
+  } else if (typeof signature === "string") {
+    logger.warn("Retell signature verification failed; rejecting");
+  }
+  return false;
+}
+
 export const retellWebhookRoutes: FastifyPluginAsync = async (app) => {
   app.post("/webhooks/retell", async (request, reply) => {
-    const env = getEnv();
-    const secret = request.headers["x-internal-tool-secret"];
-    const signature = request.headers["x-retell-signature"];
-
-    // Phase 2 bootstrap: accept shared tool secret until full Retell signature verify is wired
-    // with RETELL_API_KEY (ENABLE_RETELL=true).
-    const secretOk =
-      typeof secret === "string" &&
-      Boolean(env.RETELL_TOOL_SECRET) &&
-      secret === env.RETELL_TOOL_SECRET;
-
-    if (!secretOk) {
-      if (env.ENABLE_RETELL && signature) {
-        // Signature verification with retell-sdk lands when ENABLE_RETELL is fully configured.
-        logger.warn("Retell signature present but verifier not yet enabled; rejecting");
-      }
+    if (!authorizeRetellWebhook(request)) {
       return reply.status(401).send({ error: "unauthorized" });
     }
 

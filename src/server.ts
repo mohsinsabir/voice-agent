@@ -20,6 +20,17 @@ export async function buildApp() {
     requestIdHeader: "x-request-id",
   });
 
+  // Keep raw body for Retell HMAC (`x-retell-signature`) — must match bytes Retell signed.
+  app.addContentTypeParser("application/json", { parseAs: "buffer" }, (req, body, done) => {
+    try {
+      const raw = Buffer.isBuffer(body) ? body.toString("utf8") : String(body);
+      (req as { rawBody?: string }).rawBody = raw;
+      done(null, raw.length ? JSON.parse(raw) : {});
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
+
   await app.register(cors, {
     origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
     methods: ["GET", "POST", "OPTIONS"],
